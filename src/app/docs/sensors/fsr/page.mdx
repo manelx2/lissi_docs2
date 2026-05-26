@@ -1,0 +1,68 @@
+# Force & Pressure Sensors (FSR/Tekscan)
+
+The laboratory utilizes both Force-Sensing Resistors (FSR) and high-fidelity Tekscan F-Scan pressure insoles for plantar pressure measurement.
+
+## Repositories & Resources
+- **MATLAB Bridge**: [TekScan_matlab](https://github.com/LISSI-SIRIUS/TekScan_matlab)
+- **ROS2 Receiver**: `sensor_socket` (ROS2 Humble)
+
+---
+
+## 1. Tekscan F-Scan Pipeline
+
+The Tekscan integration enables real-time plantar pressure mapping within the ROS2 ecosystem.
+
+### Data Flow
+`Tekscan Hardware` -> `MATLAB API` -> `TCP Socket` -> `ROS2 Receiver` -> `ROS2 Viewer`.
+
+### Real-time Performance
+Due to the polling nature of the Tekscan `CaptureDataFrame` API:
+- **Single Foot**: ~20-25 Hz.
+- **Dual Foot**: ~5-8 Hz.
+- **Offline Analysis**: For high-frequency gait analysis, use the native Tekscan `.fsx` recording mode.
+
+---
+
+## 2. Execution Guide
+
+### Step 1: Start the ROS2 Receiver
+The receiver listens for incoming pressure frames and publishes them as `TekscanFrame` messages.
+
+**Single Foot:**
+```bash
+ros2 launch sensor_socket tekscan_receiver.launch.py port:=9100
+```
+
+**Dual Foot:**
+```bash
+ros2 launch sensor_socket tekscan_dual_receiver.launch.py
+```
+
+### Step 2: Launch the MATLAB Sender
+In MATLAB (Windows host), run the appropriate streaming script:
+- `run_tekscan_stream_socket.m` (Single)
+- `run_tekscan_stream_socket_dual.m` (Dual)
+
+### Step 3: Real-time Visualization
+```bash
+ros2 launch sensor_socket tekscan_dual_viewer.launch.py
+```
+
+---
+
+## 3. Network Configuration
+
+The default port assignments for Tekscan data are:
+- **9100**: Single Foot / Default.
+- **9101**: Left Foot (Dual mode).
+- **9102**: Right Foot (Dual mode).
+
+---
+
+## 4. Hardware Calibration
+
+### Sensor Claiming
+When using multiple sensors in MATLAB, ensure you接住 (capture) the remaining handles from the `TekClaimSensor` API, or subsequent sensors will fail to initialize.
+
+### Warm-up Frames
+The system is configured to discard the first **20 frames** during the "warm-up" phase to ensure the hardware buffer is flushed and providing valid pressure data.

@@ -1,0 +1,97 @@
+# Xsens MTw Awinda IMU
+
+The Xsens package provides a high-performance ROS2 driver for the **MTw Awinda** wireless motion tracking system, optimized for biomechanical analysis and robotic control.
+
+## Repositories & Resources
+- **Primary Driver**: `xsens_mtw_driver` (ROS2 Humble)
+- **Primary Workspace**: [Lissi_AFO_ws](https://github.com/manelx2/Lissi_Affo_ws)
+- **User Manual**: [ROS2 Pipeline Manual](https://github.com/LISSI-SIRIUS/Documentations/blob/main/Pipeline/ros2_pipeline_imu_soem_user_manual.md)
+
+---
+
+## 1. Basic Operation
+
+### Hardware Setup
+1. Connect the **AW-DA2 Awinda Station** via USB.
+2. Power on the MTw sensors (LEDs should blink syncronously).
+3. Ensure sensors are docked or within wireless range of the station.
+
+### Launch Sequence
+```bash
+# Start the IMU Manager
+ros2 launch xsens_mtw_driver xsens_mtw_manager.launch.py
+
+# Initialize the wireless master and scan for sensors
+ros2 service call /xsens_mtw_manager/get_ready std_srvs/srv/Trigger
+```
+
+### Data Monitoring
+```bash
+ros2 topic echo /xsens_imu_data
+```
+
+---
+
+## 2. Advanced Features
+
+### Biomechanical Calibration
+The `xsens_mtw_calibration` node implements anatomical calibration routines to map sensor axes to human body segments (Shank, Foot, Thigh, etc.).
+
+```bash
+# Run calibration script
+./src/xsens_mtw_driver/scripts/run_IMU_calibration.sh
+```
+**Calibration Controls:**
+- `y`: Toggle standing phase (gravity-based vertical alignment).
+- `z`: Toggle joint-motion segment (solve rotation axes).
+- `c`: Compute final calibration matrices.
+- `1-7`: Switch between targeted body segments.
+
+### Ankle Joint Calculator (2-IMU Version)
+For applications only requiring ankle kinematics, this node calculates joint angles using only two sensors instead of a full kinematic chain.
+
+```bash
+ros2 launch xsens_mtw_driver ankle_joint_calculator.launch.py shank_id:="SHANK_ID" foot_id:="FOOT_ID"
+```
+
+### Socket Bridge
+The `xsens_mtw_socket_bridge` forwards IMU data as JSON over UDP/TCP for integration with non-ROS processes (e.g., Unity, MATLAB).
+- **Default Port**: 5005
+- **Default Protocol**: UDP
+
+---
+
+## 3. Service API & Parameters
+
+### Service Interface
+| Service | Action |
+| :--- | :--- |
+| `/get_ready` | Transitions master to measurement mode and starts streaming. |
+| `/start_recording` | Begins high-frequency CSV logging to the local filesystem. |
+| `/stop_recording` | Stops logging and flushes the data buffer. |
+| `/imu_reset` | Resets the VQF filter state for all active sensors. |
+
+### Core Parameters
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `imu_rate` | `100` | Internal sampling rate (40Hz to 120Hz). |
+| `radio_channel` | `25` | Must match the hardware settings of the station/sensors. |
+| `use_magnetometer` | `false` | Enable for absolute heading; disable for high-metal environments. |
+| `one_topic_per_imu` | `false` | Aggregates all sensors into a single array topic by default. |
+
+---
+
+## 4. Troubleshooting
+
+### Permission Denied (`/dev/ttyUSB0`)
+If the station is not reachable, grant local permissions:
+```bash
+sudo chown $(whoami):dialout /dev/ttyUSB0
+sudo chmod 777 /dev/ttyUSB0
+```
+
+### Jitter in ROS2 Topics
+If you notice high latency or missing packets:
+1. Ensure the `ros2_rate` matches the `imu_rate`.
+2. Check for wireless interference on the configured `radio_channel`.
+3. Use a Devcontainer or ensure all ROS2 dependencies are built with optimizations (`-DCMAKE_BUILD_TYPE=Release`).

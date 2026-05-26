@@ -1,0 +1,66 @@
+# Delsys sEMG System
+
+The Delsys integration provides a multi-channel surface Electromyography (sEMG) pipeline for real-time muscle activity monitoring and recording.
+
+## Repositories & Resources
+- **Primary Package**: `delsys_socket` (ROS2 Humble)
+- **Data Handler**: `delsys_handler` (CSV storage)
+- **Message Types**: `delsys_interfaces`
+
+---
+
+## 1. System Pipeline
+
+The data flow follows a cross-platform TCP bridge:
+`Windows Trigno Script` -> `TCP` -> `Delsys Reader` -> `EMG Bridge` -> `ROS2 Topics`.
+
+### Sampling Frequencies
+- **EMG Channels**: 1111 Hz or 2148 Hz.
+- **IMU Channels**: 148 Hz.
+
+---
+
+## 2. Execution Guide
+
+### Launching the sensing bridge
+The reader and demuxer (bridge) are typically launched together to minimize latency:
+```bash
+ros2 run delsys_socket emg_reader_bridge
+```
+
+### Real-time Visualization
+Launch the dedicated viewer to monitor muscle activations across all sensors:
+```bash
+ros2 launch delsys_socket emg_viewer.launch.py
+```
+**Viewer Features:**
+- **Dynamic Layout**: Automatically adjusts subplots based on the number of active sensors.
+- **Fixed Scaling**: Default Y-axis set to `[-2, 2]` for quick activation checks.
+- **Sweep Mode**: Smooth scrolling horizontal axis.
+
+### CSV Recording
+To save high-frequency EMG data to disk:
+```bash
+ros2 run delsys_handler handler --ros-args \
+  -p emg_flag:=true \
+  -p emg_dir:="/path/to/recordings"
+```
+
+---
+
+## 3. Network Configuration
+
+The system uses specific TCP ports for different data streams:
+- **9001**: Info/Metadata
+- **9002**: EMG Data
+- **9003**: Accelerometer Data
+- **9004**: Gyroscope Data
+
+Ensure the Windows host IP (typically `192.168.50.1`) is reachable from the ROS2 environment.
+
+---
+
+## 4. Customization
+
+### Sensor Aliases
+Mapping between hardware IDs and human-readable names (e.g., `RF_RectusFemoris`) is managed in `config/sensor_aliases.yaml`. These aliases are automatically propagated to the real-time viewer and CSV filenames.

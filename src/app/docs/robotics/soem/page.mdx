@@ -1,0 +1,54 @@
+# SOEM EtherCAT Bridge
+
+The SOEM (Simple Open EtherCAT Master) driver acts as the software-to-hardware bridge for EtherCAT devices in the LISSI control chain.
+
+## Repositories & Resources
+- **Primary Repository**: [ROS2_soem](https://github.com/LISSI-SIRIUS/ROS2_soem)
+- **Hardware Configuration**: [Network_shared_cfg.pdf](https://github.com/LISSI-SIRIUS/Documentations/blob/main/Hardware/Network_shared_cfg.pdf)
+- **Slave Documentation**: [SOMANET_node.pdf](https://github.com/LISSI-SIRIUS/Documentations/tree/main/Hardware/SOMANET_node.pdf)
+
+## System Architecture
+
+The SOEM package belongs to the actuation and hardware-interface layer. It connects `ros2_control` with physical EtherCAT slave devices.
+
+`external sensing -> ROS2 nodes -> ros2_control -> SOEM EtherCAT bridge -> hardware`
+
+## Configuration & Integration
+
+The SOEM driver is loaded as a plugin for the `ros2_control` Hardware Abstraction Layer.
+
+### Mandatory URDF/YAML Parameters
+- `ec_interface`: The physical Ethernet port name (e.g., `enp3s0`).
+- `ec_cycle_us`: The communication cycle in microseconds (e.g., `1000` for 1kHz).
+
+### Slave Declaration Concept
+Slaves are defined logically in the configuration:
+1. **Name**: Unique identifier.
+2. **Alias/Position**: Bus address.
+3. **Module Plugin**: The software handler for that specific slave type (e.g., `soem_slave_modules`).
+4. **Joint Claims**: Mapping joints to specific PDO (Process Data Objects) data.
+
+## Practical Usage Flow
+
+### Step 1: Network Permissions
+EtherCAT requires raw socket access. Grant permissions to the `soem_ethercat_grant` tool or run as root (not recommended).
+
+### Step 2: Identification
+Use `ip link` to find your ethernet interface.
+Verify the bus topology using the SOEM scanning tools:
+```bash
+ros2 run soem_driver soem_bus_scan
+```
+
+### Step 3: Launch
+Typically integrated into a robot bringup:
+```bash
+# Example for a specific robot
+ros2 launch my_robot_bringup hardware.launch.py ec_interface:=eth0
+```
+
+## Lifecycle States
+1. **Initialize**: Scan bus and match slaves to config.
+2. **Configure**: Transition from PRE-OP to SAFE-OP.
+3. **Activate**: Transition to OP (Operational) mode for cyclic read/write.
+4. **Deactivate**: Safe shutdown of slaves.

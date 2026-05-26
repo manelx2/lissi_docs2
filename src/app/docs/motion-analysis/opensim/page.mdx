@@ -1,0 +1,44 @@
+# OpenSim Gait Analysis Pipeline
+
+A comprehensive pipeline for processing biomechanical data, from raw motion capture to Inverse Dynamics (ID).
+
+## Repositories & Resources
+- **Primary Repository**: [Opensim-main](https://github.com/LISSI-SIRIUS/Opensim)
+- **Official OpenSim 4.5**: [SimTK Project](https://simtk.org/frs/?group_id=91)
+- **Model Library**: [OpenSim Models GitHub](https://github.com/opensim-org/opensim-models)
+
+## Dependencies
+- **OpenSim 4.5**: The core musculoskeletal simulation engine.
+- **MATLAB**: Used for data preprocessing (C3D parsing, filtering).
+
+## Detailed Pipeline Steps
+
+### Step 0: Data Preparation
+1. **C3D Export**: Use `c3dExport(1,1)` in MATLAB to generate `*_forces_COP.mot` and `*_markers.trc`.
+2. **Preprocessing**: 
+   - `STEP0_TRC_clean.m`: Cleans marker headers.
+   - `STEP1_MOT_preProcessing_new.m`: Filters COP "jumps" during foot-ground disconnection.
+3. **Verification**: Load data in OpenSim via `File -> Preview Experimental Data` and sync motions to verify alignment.
+
+### Step 1: Model Scaling
+The goal is to adjust the generic model's dimensions to match the experimental subject.
+- **Scale Tool**: Disable "Adjust model markers" for initial scaling.
+- **Measurement Pairs**: Define markers (e.g., ASIS to Knee) to calculate scale factors.
+- **Static Pose Weights**: Set high weights (e.g., `1000`) for static markers to prioritize alignment.
+- **Outcome**: A custom `.osim` model file scaled to the patient.
+
+### Step 2: Inverse Kinematics (IK)
+Calculates joint angles that best track the experimental marker positions.
+- **Setup**: Load the `.trc` file and the scaled model.
+- **Coordinate Locking**: Enable/disable specific DOF (e.g., `subtalar_angle_r`) based on available data quality.
+
+### Step 3: Inverse Dynamics (ID)
+Determines the net joint torques and forces responsible for the motion.
+- **Input**: `IK_results.mot`.
+- **External Loads**: Map Ground Reaction Forces (GRF) from the `.mot` file to the correct body segments (feet).
+- **Outcome**: `.sto` files containing joint moments.
+
+## Best Practices
+- **Path Management**: Always use relative paths or verify absolute paths in `.xml` setup files.
+- **RMS Error**: Target RMS errors below `0.02` during scaling for high-fidelity models.
+- **Software Stability**: If loading errors occur in the GUI, restarting OpenSim 4.5 is the recommended workaround.

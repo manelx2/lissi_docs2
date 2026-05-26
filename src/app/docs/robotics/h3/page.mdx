@@ -1,0 +1,83 @@
+# Exo-H3 Robotics System
+
+The exoskeleton H3 (Exo-H3) is a lower-limb robotic system with six degrees of freedom in the sagittal plane, actuated at the hip, knee, and ankle joints.
+
+## Repositories & Resources
+- **Primary Repository**: [ROS2_H3_v110](https://github.com/LISSI-SIRIUS/ROS2_H3_v110)
+- **Original ROS1 Source**: [ROS1_H3_origin](https://github.com/LISSI-SIRIUS/ROS1_H3_origin)
+- **Demo Pipeline**: [ROS2_H3_demo](https://github.com/LISSI-SIRIUS/ROS2_H3_demo)
+- **Hardware Documentation**: [H3 Hardware Update](https://github.com/LISSI-SIRIUS/Documentations/blob/main/Hardware/H3_hardware_update.md)
+
+---
+
+## 1. System Architecture
+
+The H3 system uses a hierarchical control model where a Main Controller (MC) coordinates six individual Joint Controllers (JC).
+
+### Hardware Interfaces
+- **Joint State Interface**: Real-time reading of position (rad), velocity (rad/s), and effort (Nm).
+- **Position Joint Interface**: Direct rad command to the internal position loop.
+- **Effort Joint Interface**: Direct Nm command to the internal torque loop.
+- **Stiffness Joint Interface**: Variable impedance control (rad + %stiffness).
+
+---
+
+## 2. IMU-Integrated Demo Pipeline (2026-03-15)
+
+The latest demo standard enables a full kinematic chain from human sensing to exoskeleton control using the following architecture:
+`Xsens IMUs` -> `Joint Angle Estimation` -> `ROS Bridge` -> `H3 Control Sim/Hardware`.
+
+### 3-Terminal Execution Sequence
+
+#### Terminal 1: IMU Driver
+Start the Xsens wireless manager:
+```bash
+ros2 run xsens_mtw_driver xsens_mtw_manager
+```
+
+#### Terminal 2: H3 Gazebo Simulation
+Launch the robot model with PID controllers:
+```bash
+ros2 launch h3_urdf gazebo_pid_control.launch.py
+```
+
+#### Terminal 3: Kinematics & Bridge
+Calculate biomechanical angles and bridge them to the H3 controllers:
+```bash
+ros2 launch h3_sim_controller imu_bridge_only.launch.py
+```
+
+### Joint Mapping Defaults
+The bridge maps 6 human joints to the exoskeleton:
+- `/right_hip_angle` -> `right_hip`
+- `/right_knee_angle` -> `right_knee`
+- `/right_ankle_angle` -> `right_ankle`
+- *(Mirror for left side)*
+
+---
+
+## 3. Configuration & Tuning
+
+### Control Modes
+Switching modes is handled via the `h3_control_mode_client.py` tool:
+1. **Mode 1**: Position Control (Standard)
+2. **Mode 2**: Stiffness Control (Impedance)
+3. **Mode 3**: Torque Control (Effort)
+4. **Mode 4**: Motor Disable (Safety)
+5. **Mode 6**: Open Loop
+
+### Critical Parameters (Kinematics)
+The `matlab_zxz_diff` method is the default for joint angle extraction as it provides superior stability against out-of-plane motion Jitter compared to basic projection methods.
+
+---
+
+## 4. Hardware Procedures
+
+### Connectivity Check
+1. Use **PCAN-View** to verify CAN bus health.
+2. Default bitrates are typically **1M** or **500k**.
+3. Target Node IDs: `0x81` (Master) or individual joint IDs.
+
+### Firmware Updates
+Updates to the **EADM-025** boards require an **ST-LINK** debugger. The firmware binaries are located in the `firmware/` directory of the `ROS1_H3_origin` repository.
+- **Shielding**: Ensure motor shielding is correctly grounded to prevent EMI interference with the IMU wireless signal.

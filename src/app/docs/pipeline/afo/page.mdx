@@ -1,0 +1,113 @@
+# AFO Robotic System
+
+The **Active Ankle Foot Orthosis (AFO)** is a robotic system designed for lower limb assistance. The current technical implementation focuses on a robust **IMU sensing pipeline** and a **Gazebo simulation environment** for control development.
+
+> **Nomenclature Note:** While the hardware system is the **AFO**, the ROS2 workspace and primary packages use the identifier `AFFO` for historical reasons.
+
+## Repository & Development Environment
+- **Primary Workspace**: [Lissi_AFO_ws (GitHub)](https://github.com/manelx2/Lissi_Affo_ws)
+- **Environment**: Optimized for **ROS2 Humble** running in a **Devcontainer** (Docker).
+
+### Devcontainer Features
+The workspace includes a complete `.devcontainer` configuration that automates the setup of:
+- **ROS2 Humble Desktop** base image.
+- **Gazebo Classic** for simulation.
+- **Dependencies**: `ros2_control`, `ros2_controllers`, `gazebo_ros2_control`, `xacro`, `plotjuggler`.
+- **Hardware Access**: Pre-configured mapping for `/dev/ttyUSB0` (XSens Station).
+
+---
+
+## 1. IMU Sensing Pipeline
+
+The AFO system utilizes Xsens MTw Awinda sensors to track the kinematics of the ankle joint.
+
+### Launch Sequence (3-Terminal Setup)
+
+#### Terminal 1: IMU Hardware Driver
+Connect the XSens AW-DA2 station and start the manager:
+```bash
+ros2 run xsens_mtw_driver xsens_mtw_manager
+```
+
+#### Terminal 2: Angle Calculation
+Launch the `ankle_joint_calculator` to process raw IMU data into biomechanical angles:
+```bash
+ros2 launch xsens_mtw_driver ankle_joint_calculator.launch.py shank_id:="ID1" foot_id:="ID2"
+```
+
+#### Terminal 3: Data Visualization
+Monitor real-time data using PlotJuggler:
+```bash
+ros2 run plotjuggler plotjuggler
+```
+
+---
+
+## 2. Simulation & Gazebo Pipeline
+
+The system includes a high-fidelity Gazebo simulation for testing control algorithms before hardware deployment.
+
+### Key Components
+- **Model Structure**: Tibia (fixed to world), Foot (actuated segment), and Ankle Joint (revolute).
+- **Control Interface**: Effort-based PID (`robot_effort_pid_controller`) via `ros2_control`.
+- **Transmission**: Internal gear chains are modeled as an **equivalent reduction ratio** at the control layer.
+
+### Launching the Simulation
+```bash
+# Launch Gazebo + AFO Model
+ros2 launch AFFO gazebo_xacro.launch.py
+
+# Launch RViz for visualization
+ros2 launch AFFO view_robot.launch.py
+```
+
+### IMU-to-Gazebo Bridge
+The `AFFO_sim_controller` package provides a bridge that allows physical IMU data to drive the simulation model, following the **H3 Reference Architecture**.
+
+```bash
+ros2 launch AFFO_sim_controller imu_bridge.launch.py
+```
+
+---
+
+## 3. Configuration & Control
+
+### Controller Management
+The system supports multiple control modes defined in `config/robot_controllers.yaml`:
+
+| Controller | Type | Purpose |
+| :--- | :--- | :--- |
+| `joint_state_broadcaster` | Broadcaster | Publishes position/velocity/effort to `/joint_states` |
+| `robot_effort_pid_controller` | Trajectory | Primary effort-based PID controller |
+| `joint_group_position_controller` | Position | Direct position control (e.g., for oscillation tests) |
+
+### Switching Controllers
+```bash
+ros2 control switch_controllers \
+  --controller-manager /AFFO_sim/controller_manager \
+  --activate robot_effort_pid_controller \
+  --deactivate joint_group_position_controller
+```
+
+---
+
+## 4. Troubleshooting & Best Practices
+
+### Robot Stability in Gazebo
+- **Problem**: The model floats or drifts randomly.
+- **Fix**: Ensure the `use_fixed_base` argument is set to `true` in the launch file. This creates a fixed joint between the `world` and `base_link`.
+
+### Effort/Velocity Feedback at Zero
+- **Symptom**: `position` updates but `velocity` and `effort` are 0 in `/joint_states`.
+- **Cause**: Using `JointGroupPositionController` bypasses the physics engine calculation for these fields.
+- **Fix**: Switch to the `robot_effort_pid_controller` for full physics feedback.
+
+### Namespace Consistency
+- **Critical**: All components must share the `/AFFO_sim` namespace. Mismatched namespaces will cause controllers to hang in the `waiting for service` state.
+
+### Workspace Hygiene
+Stale build artifacts often cause "ghost" node behavior. Regularly clean the workspace:
+```bash
+rm -rf build/ install/ log/
+colcon build --symlink-install
+```
